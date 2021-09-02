@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# Issue status codes, see https://www.drupal.org/drupalorg/docs/api.
+STATUSES[1]="Active"
+STATUSES[8]="Needs work"
+STATUSES[13]="Needs review"
+STATUSES[14]="Reviewed & tested by the community"
+STATUSES[15]="Patch (to be ported)"
+STATUSES[2]="Fixed"
+STATUSES[4]="Postponed"
+STATUSES[16]="Postponed (maintainer needs more info)"
+STATUSES[3]="Closed (duplicate)"
+STATUSES[5]="Closed (won't fix)"
+STATUSES[6]="Closed (works as designed)"
+STATUSES[18]="Closed (cannot reproduce)"
+STATUSES[17]="Closed (outdated)"
+STATUSES[7]="Closed (fixed)"
+
+prefix=$(basename $(git remote get-url origin) .git)
+regex="^$prefix-[0-9]+$"
+results=()
+# Loop over all git remotes.
+for remote in $(git remote); do
+  # Check for remotes that match the expected pattern.
+  if ! [[ $remote =~ $regex ]]; then
+    continue
+  fi
+
+  # Strip the "drupal-" prefix.
+  nid=$(echo "$remote" | sed "s/$prefix-//")
+  # Query the d.o API for the issue status, strip the wrapping quotes.
+  status=$(eval "curl -s https://www.drupal.org/api-d7/node/$nid.json | jq '.field_issue_status' | sed 's/\"//g'")
+  # Save the human-readable status and remote for processing.
+  results+=("${STATUSES[$status]}|$remote")
+done
+awk -F"|" '
+{
+  # Group the remotes by status.
+  remotes[$1] = remotes[$1] ? remotes[$1] "\n\t" $2 : $1 ":\n\t" $2;
+}
+END {
+  for (key in remotes) {
+    print remotes[key];
+  }
+}
+' <(printf '%s\n' "${results[@]}")

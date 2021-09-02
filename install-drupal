@@ -1,0 +1,27 @@
+#!/bin/bash
+
+xdebug off;
+
+# Remove the files from a previous install.
+sudo rm -rf sites/default;
+# Restore the directories and files that are included by Drupal.
+sudo git checkout -- sites/default;
+# Fix permissions and ownership problems caused by sudo.
+sudo chmod -R 777 sites/default;
+sudo chown -R $(whoami) sites/default;
+# Because we are paranoid, do it again?!
+sudo git checkout -- sites/default;
+sudo chown -R $(whoami) sites/default;
+
+drush site:install -y --db-url=sqlite://sites/default/files/.ht.sqlite
+
+# Enable the development settings (disable CSS/JS aggregation, render caches, etc.)
+sudo cp sites/example.settings.local.php sites/default/settings.local.php
+printf "include __DIR__ . '/settings.local.php';\n\$settings['cache']['bins']['render'] = 'cache.backend.null';\n\$settings['cache']['bins']['dynamic_page_cache'] = 'cache.backend.null';" | sudo tee -a sites/default/settings.php > /dev/null
+
+# Uninstall cache modules.
+drush pmu page_cache -y
+drush pmu dynamic_page_cache -y
+
+# Turn on logging.
+drush cset system.logging error_level 'all' -y

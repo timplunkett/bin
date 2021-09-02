@@ -1,0 +1,42 @@
+#!/bin/bash
+
+if [ $# -eq 0 ]; then
+  echo "Usage: git idiff [comment-number] [interdiff-rev] [base-rev]"
+  exit 1
+fi
+
+EXAMPLE="foo"
+FAIL=false
+OPTS=`getopt -o h --longoptions example:,fail -- "$@"`
+eval set -- "$OPTS"
+while true; do
+  case "$1" in
+    --example ) EXAMPLE="$2"; shift; shift ;;
+    --fail ) FAIL=true; shift ;;
+    -- ) shift; break ;;
+    * ) break ;;
+  esac
+done
+
+if [[ $(git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1) =~ ^origin ]]; then
+  UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u})
+else
+  UPSTREAM="${4:-"origin"}/${3:-${D8_UPSTREAM_BRANCH}}"
+fi
+COMMIT=${2:-"HEAD^"}
+BRANCH=$(git branch-name)
+BRANCH=${BRANCH//*\//}
+
+git log --oneline --reverse --no-decorate $COMMIT... && echo
+
+if [ "$FAIL" = true ] ; then
+  git diff --binary $COMMIT > ~/Desktop/$BRANCH-$1-FAIL.patch
+  echo $BRANCH-$1-FAIL.patch
+  git diff --binary $UPSTREAM... > ~/Desktop/$BRANCH-$1-PASS.patch
+  echo $BRANCH-$1-PASS.patch
+else
+  git diff --binary $COMMIT > ~/Desktop/$BRANCH-$1-interdiff.txt
+  echo $BRANCH-$1-interdiff.txt
+  git diff --binary $UPSTREAM... > ~/Desktop/$BRANCH-$1.patch
+  echo $BRANCH-$1.patch
+fi

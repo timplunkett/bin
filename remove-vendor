@@ -1,0 +1,9 @@
+#!/bin/bash
+
+rm -rf vendor/
+xdebug off
+composer require drush/drush
+composer install
+composer drupal-phpunit-upgrade
+git checkout -- composer.*
+./vendor/bin/phpcs --config-set installed_paths ~/.composer/vendor/drupal/coder/coder_sniffer

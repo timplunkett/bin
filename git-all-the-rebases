@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# Use an environment variable to know which branch should be used.
+if [ -z "$D8_UPSTREAM_BRANCH" ]; then
+  echo "Missing the \$D8_UPSTREAM_BRANCH environment variable which must be set to something like '8.7.x'."
+  exit 1
+fi
+
+current_branch=$(git symbolic-ref --short HEAD)
+branch=${1:-${D8_UPSTREAM_BRANCH}}
+
+# Find the current and newest upstream hash.
+old=$(git rev-parse --short "$branch")
+git fetch -q
+new=$(git rev-parse --short origin/"$branch")
+
+# Exit if there have been no new commits.
+if [ "$old" == "$new" ]; then
+  echo "No new commits."
+  exit 0
+fi
+
+# Find all branches that were up-to-date before and are now out-of-date.
+list=$(git branch --contains "$old" --no-contains "$new" --format='%(refname:short)')
+
+# Count the number of branches.
+total=$(echo "$list" | wc -l | awk '{print $1}')
+
+# If there are no out-of-date branches, exit.
+if [ "$total" -eq 0 ]; then
+  echo "No branches need rebasing."
+  exit 0
+fi
+
+# Loop through all of the out-of-date branches.
+commitnum=$(git rev-list --count "$old".."$new")
+echo "Rebasing $total branches $commitnum commits from $old to $new"
+count=0
+rebase=()
+for ref in $list; do
+  if ! (sudo git checkout -q "$ref"); then
+    sudo git checkout -- sites/default >/dev/null 2>&1
+  fi
+  # Attempt to rebase the branch, adding it to the list and aborting the rebase
+  # if it fails.
+  if ! (sudo git rebase -q origin/"$branch" >/dev/null 2>&1); then
+    rebase+=("$ref")
+    sudo git rebase --abort
+  fi
+  sudo git checkout -- sites/default >/dev/null 2>&1
+
+  # Print a progress bar.
+  count=$(( $count + 1 ))
+  printf "\r%3d%% done, %s failed" $(( $count * 100 / $total )) ${#rebase[@]}
+done
+printf "\n"
+
+if [ ${#rebase[@]} -ne 0 ]; then
+  printf "\n"
+  echo "The following branches failed rebasing:"
+  printf "\n"
+  printf "%s\n" "${rebase[@]}"
+  sudo git checkout -q "$current_branch"
+else
+  # If all branches were successfully rebased, perform any custom rebasing.
+  #git checkout -q 3001313-suggestions && git rebase -q 3029625-context && \
+  sudo git checkout -q "$current_branch"
+fi
+
+sudo chown -R `whoami` core
+sudo chown -R `whoami` .git
+
+printf "\n"
+echo "Rebasing took $SECONDS seconds."
