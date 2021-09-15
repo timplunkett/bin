@@ -1,5 +1,8 @@
 #!/bin/bash
 
+PROFILE=${1:-"standard"}
+DB=${2:-"drupal_core"}
+
 xdebug off;
 
 # Remove the files from a previous install.
@@ -13,7 +16,9 @@ sudo chown -R $(whoami) sites/default;
 sudo git checkout -- sites/default;
 sudo chown -R $(whoami) sites/default;
 
-drush site:install -y --db-url=sqlite://sites/default/files/.ht.sqlite
+# Commented out SQLite command, using MySQL for now.
+#drush site:install -y --db-url=sqlite://sites/default/files/.ht.sqlite
+drush site:install "$PROFILE" --db-url=mysql://root@localhost/"$DB" -y --notify
 
 # Enable the development settings (disable CSS/JS aggregation, render caches, etc.)
 sudo cp sites/example.settings.local.php sites/default/settings.local.php
